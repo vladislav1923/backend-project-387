@@ -1,0 +1,147 @@
+name: lighthouse
+
+on:
+  # 05:00 Europe/Moscow (UTC+3) — report ready to review in the morning
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL to audit (leave empty to build & serve this repo locally)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Decide target mode
+        id: mode
+        run: |
+          INPUT_URL="${{ github.event.inputs.url }}"
+          if [ -n "$INPUT_URL" ]; then
+            echo "local=false" >> "$GITHUB_OUTPUT"
+            echo "url=$INPUT_URL" >> "$GITHUB_OUTPUT"
+          else
+            echo "local=true" >> "$GITHUB_OUTPUT"
+            echo "url=http://127.0.0.1:3000" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build application
+        if: steps.mode.outputs.local == 'true'
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Start application
+        if: steps.mode.outputs.local == 'true'
+        run: |
+          npm start &
+          echo $! > /tmp/next.pid
+          for i in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:3000" >/dev/null 2>&1; then
+              echo "Server is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server failed to start"
+          exit 1
+        env:
+          PORT: "3000"
+          HOSTNAME: "0.0.0.0"
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Setup Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Install Lighthouse CLI
+        run: npm install --no-save lighthouse@12
+
+      - name: Run Lighthouse CLI
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+        run: |
+          mkdir -p lighthouse-report
+          npx lighthouse "${{ steps.mode.outputs.url }}" \
+            --chrome-flags="--headless --no-sandbox --disable-gpu --disable-dev-shm-usage" \
+            --output=html \
+            --output=json \
+            --output-path=./lighthouse-report/report \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --quiet
+          ls -la lighthouse-report
+
+      - name: Generate fixes summary
+        run: |
+          node .github/scripts/lighthouse-summary.mjs \
+            lighthouse-report/report.json \
+            lighthouse-report/FIXES.md
+          echo "----- FIXES.md -----"
+          cat lighthouse-report/FIXES.md
+
+      - name: Upload Lighthouse report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report-${{ github.run_id }}
+          path: lighthouse-report/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Publish morning summary issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="Lighthouse morning report ($(date -u +%Y-%m-%d))"
+          BODY_FILE=lighthouse-report/issue-body.md
+          {
+            echo "## Automated Lighthouse check"
+            echo ""
+            echo "- **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "- **Artifact:** \`lighthouse-report-${{ github.run_id }}\` (HTML + JSON + FIXES.md, kept 14 days)"
+            echo "- **Target:** ${{ steps.mode.outputs.url }}"
+            echo ""
+            echo "Download the artifact from the Actions run to open \`report.html\` in a browser."
+            echo ""
+            cat lighthouse-report/FIXES.md
+          } > "$BODY_FILE"
+
+          EXISTING=$(gh issue list \
+            --search "Lighthouse morning report in:title" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" --title "$TITLE" --body-file "$BODY_FILE"
+            echo "Updated issue #$EXISTING"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY_FILE"
+            echo "Created morning report issue"
+          fi
+
+      - name: Stop application
+        if: always() && steps.mode.outputs.local == 'true'
+        run: |
+          if [ -f /tmp/next.pid ]; then
+            kill "$(cat /tmp/next.pid)" || true
+          fi
