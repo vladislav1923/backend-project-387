@@ -1,7 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": ["cursor-opencode-provider"],
-  "plugins": ["cursor-opencode-provider/plugin/v2"],
   "provider": {
     "cursor": {
       "npm": "cursor-opencode-provider",
