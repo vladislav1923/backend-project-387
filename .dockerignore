@@ -1,0 +1,36 @@
+# dependencies & build artifacts
+node_modules
+.next
+out
+dist
+tsp-output
+coverage
+test-results
+playwright-report
+blob-report
+playwright/.cache
+
+# git / ci / ide
+.git
+.github
+.cursor
+.gitignore
+.DS_Store
+
+# env & local
+.env*
+!.env.example
+
+# docs / tests not needed in image
+README.md
+e2e
+playwright.config.ts
+AGENTS.md
+CLAUDE.md
+*.md
+
+# TypeSpec sources (not required at runtime)
+main.tsp
+tspconfig.yaml
+release-please-config.json
+.release-please-manifest.json
