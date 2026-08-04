@@ -1,9 +1,14 @@
 "use client";
 
 import {
+  formatMoscowCalendarDay,
   formatMoscowDateTime,
+  formatMoscowMonthDay,
   formatMoscowTime,
+  moscowDateOnly,
+  moscowDateTime,
 } from "@/lib/moscow-time";
+import { bookingWindowBounds } from "@/lib/slots";
 import type { BookedEvent, Booking, EventType, Slot } from "@/lib/types";
 import {
   ArrowLeftIcon,
@@ -12,7 +17,7 @@ import {
   ClockIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { addDays, format, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { EventTypeCard } from "@/components/events/event-type-card";
 import { BookedEventsList } from "@/components/guest/booked-events-list";
 import { Button } from "@/components/ui/button";
@@ -34,10 +39,6 @@ import {
 
 type Step = "list" | "calendar" | "slots" | "confirmed";
 
-function toDateOnly(date: Date): string {
-  return format(date, "yyyy-MM-dd");
-}
-
 export function GuestBookingPage() {
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [bookings, setBookings] = useState<BookedEvent[]>([]);
@@ -56,8 +57,18 @@ export function GuestBookingPage() {
   const [bookingPending, setBookingPending] = useState(false);
   const [booking, setBooking] = useState<Booking | null>(null);
 
-  const today = useMemo(() => startOfDay(new Date()), []);
-  const windowEnd = useMemo(() => addDays(today, 13), [today]);
+  const { start: windowStart, end: windowEndDate } = useMemo(
+    () => bookingWindowBounds(),
+    [],
+  );
+  const calendarStart = useMemo(
+    () => moscowDateTime(windowStart, 12, 0),
+    [windowStart],
+  );
+  const calendarEnd = useMemo(
+    () => moscowDateTime(windowEndDate, 12, 0),
+    [windowEndDate],
+  );
 
   const loadBookings = useCallback(async () => {
     setBookingsLoading(true);
@@ -117,7 +128,7 @@ export function GuestBookingPage() {
       setSlotsLoading(true);
       setError(null);
       try {
-        const date = toDateOnly(selectedDay!);
+        const date = moscowDateOnly(selectedDay!);
         const response = await fetch(
           `/api/event-types/${selectedEventType!.id}/slots?date=${date}`,
         );
@@ -160,7 +171,8 @@ export function GuestBookingPage() {
     if (!day) {
       return;
     }
-    setSelectedDay(day);
+    const dateOnly = format(day, "yyyy-MM-dd");
+    setSelectedDay(moscowDateTime(dateOnly, 12, 0));
     setSelectedSlot(null);
     setError(null);
     setStep("slots");
@@ -242,7 +254,7 @@ export function GuestBookingPage() {
                 "Select a day within the next two weeks."}
               {step === "slots" &&
                 selectedDay &&
-                `Available ${selectedEventType?.durationMinutes}-minute slots on ${format(selectedDay, "EEEE, MMM d")} (10:00–17:00 Moscow time).`}
+                `Available ${selectedEventType?.durationMinutes}-minute slots on ${formatMoscowCalendarDay(selectedDay)} (10:00–17:00 Moscow time).`}
               {step === "confirmed" &&
                 "Your meeting is confirmed. See you then."}
             </p>
@@ -347,8 +359,8 @@ export function GuestBookingPage() {
             <CardHeader>
               <CardTitle>Pick a day</CardTitle>
               <CardDescription>
-                Booking window: {format(today, "MMM d")} –{" "}
-                {format(windowEnd, "MMM d")}
+                Booking window: {formatMoscowMonthDay(calendarStart)} –{" "}
+                {formatMoscowMonthDay(calendarEnd)}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -356,8 +368,8 @@ export function GuestBookingPage() {
                 mode="single"
                 selected={selectedDay}
                 onSelect={selectDay}
-                disabled={{ before: today, after: windowEnd }}
-                defaultMonth={today}
+                disabled={{ before: calendarStart, after: calendarEnd }}
+                defaultMonth={calendarStart}
               />
             </CardContent>
           </Card>

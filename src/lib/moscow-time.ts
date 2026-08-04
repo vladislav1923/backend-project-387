@@ -39,6 +39,23 @@ export function formatMoscowTime(date: Date): string {
   }).format(date);
 }
 
+export function formatMoscowMonthDay(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MOSCOW_TZ,
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+export function formatMoscowCalendarDay(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MOSCOW_TZ,
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
 export function formatMoscowDateTime(date: Date): string {
   const weekday = new Intl.DateTimeFormat("en-US", {
     timeZone: MOSCOW_TZ,
