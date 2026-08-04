@@ -22,7 +22,9 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
-          persist-credentials: false
+          # Needed so later git push can use GITHUB_TOKEN (use_github_token: true).
+          persist-credentials: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify CURSOR_API_KEY secret
         env:
@@ -34,11 +36,14 @@ jobs:
           fi
           echo "CURSOR_API_KEY is set (length=${#CURSOR_API_KEY})."
 
-      # Required when use_github_token is true — GITHUB_TOKEN commits need an identity.
-      - name: Configure git identity
+      # Required when use_github_token is true — GITHUB_TOKEN commits/pushes need identity + remote auth.
+      - name: Configure git for push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
 
       - name: Run OpenCode
         uses: anomalyco/opencode/github@latest
