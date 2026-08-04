@@ -40,5 +40,5 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          model: cursor/composer-2
+          model: cursor/composer-2.5
           use_github_token: true
