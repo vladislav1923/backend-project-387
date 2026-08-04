@@ -52,3 +52,35 @@ export function formatMoscowDateTime(date: Date): string {
 
   return `${weekday}, ${monthDay} · ${formatMoscowTime(date)}`;
 }
+
+/** Short label for a Moscow calendar date (YYYY-MM-DD). */
+export function formatMoscowMonthDay(dateOnly: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MOSCOW_TZ,
+    month: "short",
+    day: "numeric",
+  }).format(moscowDateTime(dateOnly, 12, 0));
+}
+
+/** Weekday + month/day for a Moscow calendar date (YYYY-MM-DD). */
+export function formatMoscowWeekdayMonthDay(dateOnly: string): string {
+  const date = moscowDateTime(dateOnly, 12, 0);
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: MOSCOW_TZ,
+    weekday: "long",
+  }).format(date);
+  const monthDay = new Intl.DateTimeFormat("en-US", {
+    timeZone: MOSCOW_TZ,
+    month: "short",
+    day: "numeric",
+  }).format(date);
+  return `${weekday}, ${monthDay}`;
+}
+
+/**
+ * Moscow booking date for a day picked on the calendar grid (YYYY-MM-DD).
+ * Uses the calendar cell's year/month/day, not the instant in Moscow.
+ */
+export function moscowBookingDateFromCalendarDay(day: Date): string {
+  return `${day.getFullYear()}-${pad2(day.getMonth() + 1)}-${pad2(day.getDate())}`;
+}
