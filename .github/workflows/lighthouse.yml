@@ -81,15 +81,30 @@ jobs:
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
         run: |
+          set -euo pipefail
           mkdir -p lighthouse-report
+          echo "CHROME_PATH=${CHROME_PATH:-}"
+          echo "Auditing: ${{ steps.mode.outputs.url }}"
+
+          # With multiple --output values, Lighthouse treats --output-path as a prefix
+          # and writes: <prefix>.report.html and <prefix>.report.json
           npx lighthouse "${{ steps.mode.outputs.url }}" \
             --chrome-flags="--headless --no-sandbox --disable-gpu --disable-dev-shm-usage" \
             --output=html \
             --output=json \
-            --output-path=./lighthouse-report/report \
+            --output-path=./lighthouse-report/lighthouse \
             --only-categories=performance,accessibility,best-practices,seo \
-            --quiet
+            --preset=desktop
+
+          echo "Files written:"
           ls -la lighthouse-report
+
+          test -f lighthouse-report/lighthouse.report.json
+          test -f lighthouse-report/lighthouse.report.html
+
+          # Stable names for later steps / artifact consumers
+          cp lighthouse-report/lighthouse.report.json lighthouse-report/report.json
+          cp lighthouse-report/lighthouse.report.html lighthouse-report/report.html
 
       - name: Generate fixes summary
         run: |
